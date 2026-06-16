@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@theme {
+  --color-dark-bg: #0f172a;
+  --color-dark-surface: #1e293b;
+  --color-dark-border: #334155;
+  --color-dark-text: #f8fafc;
+  --color-dark-muted: #94a3b8;
+}
+
+@layer base {
+  .dark {
+    background-color: var(--color-dark-bg);
+    color: var(--color-dark-text);
+  }
+}
+
+@layer utilities {
+  .app-shell {
+    padding-top: var(--safe-area-top);
+    padding-right: var(--safe-area-right);
+    padding-bottom: var(--safe-area-bottom);
+    padding-left: var(--safe-area-left);
+  }
+  .h-mobile-screen {
+    height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+  .min-h-mobile-screen {
+    min-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+  .dark .bg-white {
+    background-color: var(--color-dark-surface);
+  }
+  .dark .bg-gray-50 {
+    background-color: var(--color-dark-bg);
+  }
+  .dark .hover\:bg-gray-50:hover, .dark .hover\:bg-gray-100:hover, .dark .hover\:bg-gray-200:hover {
+    background-color: var(--color-dark-border);
+  }
+  .dark .hover\:bg-gray-800:hover {
+    background-color: #1e293b;
+  }
+  .dark .bg-blue-50 {
+    background-color: rgba(37, 99, 235, 0.2);
+  }
+  .dark .hover\:bg-blue-50:hover {
+    background-color: rgba(37, 99, 235, 0.3);
+  }
+  .dark .hover\:bg-red-50:hover {
+    background-color: rgba(220, 38, 38, 0.2);
+  }
+  .dark .text-gray-800, .dark .text-gray-900 {
+    color: var(--color-dark-text);
+  }
+  .dark .text-gray-700 {
+    color: #e2e8f0;
+  }
+  .dark .text-gray-600, .dark .text-gray-500 {
+    color: var(--color-dark-muted);
+  }
+  .dark .border-gray-200, .dark .border-gray-100 {
+    border-color: var(--color-dark-border);
+  }
+}

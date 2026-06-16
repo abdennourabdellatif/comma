@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the corporate chat application.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "companyId": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "showOnlineStatus": { "type": "boolean" },
+        "blockedUsers": { "type": "array", "items": { "type": "string" } },
+        "restrictedUsers": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "displayName", "role", "companyId", "createdAt"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "A company workspace.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "A chat channel within a company.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "companyId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["public", "private"] },
+        "members": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "companyId", "createdBy", "createdAt", "type"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message sent in a channel.",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderPhotoURL": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["channelId", "companyId", "senderId", "senderName", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles."
+    },
+    "/companies/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Company workspaces."
+    },
+    "/channels/{channelId}": {
+      "schema": { "$ref": "#/entities/Channel" },
+      "description": "Chat channels."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Chat messages."
+    }
+  }
+}

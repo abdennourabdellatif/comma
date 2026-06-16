@@ -1,0 +1,7 @@
+{
+  "name": "comma",
+  "description": "A secure, customizable private group chat application for companies and teams.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

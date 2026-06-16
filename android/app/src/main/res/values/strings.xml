@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">comma</string>
+    <string name="title_activity_main">comma</string>
+    <string name="package_name">com.comma.app</string>
+    <string name="custom_url_scheme">com.comma.app</string>
+</resources>

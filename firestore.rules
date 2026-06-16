@@ -1,0 +1,195 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function isUserInCompany(companyId) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             getUserData(request.auth.uid).companyId == companyId;
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             getUserData(request.auth.uid).companyId == companyId && 
+             getUserData(request.auth.uid).role == 'admin';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             (getUserData(request.auth.uid).role == 'admin' || 
+              (request.auth.token.email == "abdennourabdellatif55@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasEmail() {
+      return request.auth != null && 'email' in request.auth.token && request.auth.token.email != null;
+    }
+
+    function canAccessChannel(channelId) {
+      let channelDoc = get(/databases/$(database)/documents/channels/$(channelId));
+      return channelDoc != null && (
+             (channelDoc.data.type == 'public' && isUserInCompany(channelDoc.data.companyId)) ||
+             (request.auth.uid in channelDoc.data.members) ||
+             ('invitedEmails' in channelDoc.data && hasEmail() && request.auth.token.email in channelDoc.data.invitedEmails)
+      );
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.email is string && isValidEmail(data.email) &&
+             data.username is string && data.username.size() > 0 && data.username.size() <= 100 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000000)) &&
+             data.role in ['admin', 'member'] &&
+             data.companyId is string && data.companyId.size() > 0 &&
+             (!('isOnline' in data) || data.isOnline is bool) &&
+             (!('showOnlineStatus' in data) || data.showOnlineStatus is bool) &&
+             (!('blockedUsers' in data) || data.blockedUsers is list) &&
+             (!('restrictedUsers' in data) || data.restrictedUsers is list) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCompany(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidChannel(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             data.companyId is string && data.companyId.size() > 0 &&
+             data.createdBy is string &&
+             data.createdAt is timestamp &&
+             data.type in ['public', 'private', 'dm'] &&
+             (!('members' in data) || (data.members is list && data.members.size() <= 1000)) &&
+             (!('invitedEmails' in data) || (data.invitedEmails is list && data.invitedEmails.size() <= 100)) &&
+             (!('memberNames' in data) || data.memberNames is map) &&
+             (!('status' in data) || data.status in ['pending', 'accepted']) &&
+             (!('lastMessageAt' in data) || data.lastMessageAt is timestamp) &&
+             (!('lastMessageSenderId' in data) || data.lastMessageSenderId is string) &&
+             (!('readBy' in data) || data.readBy is list);
+    }
+
+    function isValidMessage(data) {
+      return data.channelId is string && data.channelId.size() > 0 &&
+             data.companyId is string && data.companyId.size() > 0 &&
+             data.senderId is string && data.senderName is string && data.senderName.size() > 0 && data.senderName.size() <= 100 &&
+             (!('senderPhotoURL' in data) || (data.senderPhotoURL is string && data.senderPhotoURL.size() <= 1000000)) &&
+             (!('text' in data) || (data.text is string && data.text.size() <= 10000)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000000)) &&
+             (!('audioUrl' in data) || (data.audioUrl is string && data.audioUrl.size() <= 1000000)) &&
+             (!('reactions' in data) || data.reactions is map) &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    function isBlockedByRecipient(channelId) {
+      let channel = get(/databases/$(database)/documents/channels/$(channelId)).data;
+      let otherUid = (channel.members[0] == request.auth.uid) ? channel.members[1] : channel.members[0];
+      let otherUser = get(/databases/$(database)/documents/users/$(otherUid)).data;
+      return channel.type == 'dm' && 
+             ('blockedUsers' in otherUser) && 
+             (request.auth.uid in otherUser.blockedUsers);
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isOnline', 'showOnlineStatus', 'blockedUsers', 'restrictedUsers'])) ||
+        (isValidUser(request.resource.data) && 
+         request.resource.data.companyId == resource.data.companyId &&
+         (request.resource.data.role == resource.data.role || isCompanyAdmin(resource.data.companyId)))
+      );
+    }
+
+    match /companies/{companyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['name', 'createdAt']) && isValidCompany(request.resource.data);
+      allow update: if isCompanyAdmin(companyId) && isValidCompany(request.resource.data);
+    }
+
+    match /channels/{channelId} {
+      allow read: if isAuthenticated() && (
+                    ('companyId' in resource.data && isUserInCompany(resource.data.companyId)) ||
+                    ('members' in resource.data && request.auth.uid in resource.data.members) ||
+                    ('invitedEmails' in resource.data && hasEmail() && request.auth.token.email in resource.data.invitedEmails)
+                  );
+      
+      allow create: if isAuthenticated() &&
+                    hasRequiredFields(['name', 'companyId', 'createdBy', 'createdAt', 'type']) &&
+                    request.resource.data.createdBy == request.auth.uid &&
+                    isValidChannel(request.resource.data);
+      
+      allow update: if isAuthenticated() && (
+                      (isUserInCompany(resource.data.companyId) && (resource.data.createdBy == request.auth.uid || isCompanyAdmin(resource.data.companyId))) ||
+                      ('type' in resource.data && resource.data.type == 'dm' && 'members' in resource.data && request.auth.uid in resource.data.members) ||
+                      ('invitedEmails' in resource.data && hasEmail() && request.auth.token.email in resource.data.invitedEmails) ||
+                      (
+                        (
+                          (resource.data.type == 'public' && isUserInCompany(resource.data.companyId)) ||
+                          ('members' in resource.data && request.auth.uid in resource.data.members)
+                        ) &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt', 'lastMessageSenderId', 'readBy'])
+                      )
+                    ) && isValidChannel(request.resource.data);
+                    
+      allow delete: if isAuthenticated() && (
+                      ('companyId' in resource.data && isUserInCompany(resource.data.companyId) && (resource.data.createdBy == request.auth.uid || isCompanyAdmin(resource.data.companyId))) ||
+                      ('type' in resource.data && resource.data.type == 'dm' && 'members' in resource.data && request.auth.uid in resource.data.members)
+                    );
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && canAccessChannel(resource.data.channelId);
+      
+      allow create: if isAuthenticated() && canAccessChannel(request.resource.data.channelId) &&
+                    hasRequiredFields(['channelId', 'companyId', 'senderId', 'senderName', 'createdAt']) &&
+                    request.resource.data.senderId == request.auth.uid &&
+                    isValidMessage(request.resource.data) &&
+                    !isBlockedByRecipient(request.resource.data.channelId);
+      
+      allow update: if isAuthenticated() && canAccessChannel(resource.data.channelId) &&
+                    isValidMessage(request.resource.data) &&
+                    request.resource.data.channelId == resource.data.channelId &&
+                    request.resource.data.companyId == resource.data.companyId &&
+                    request.resource.data.senderId == resource.data.senderId &&
+                    (
+                      isOwner(resource.data.senderId) || 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+                    );
+                    
+      allow delete: if isOwner(resource.data.senderId) || isCompanyAdmin(resource.data.companyId);
+    }
+  }
+}
